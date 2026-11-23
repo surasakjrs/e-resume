@@ -56,6 +56,15 @@ const partLabels: Record<Part, string> = {
 // Preserve a readable one-page PDF while allowing a small final reduction for dense resumes.
 const MIN_SCALE = 0.72;
 
+type PageMargins = { top: number; right: number; bottom: number; left: number };
+const DEFAULT_MARGINS: PageMargins = { top: 10, right: 11, bottom: 10, left: 11 };
+const MARGIN_FIELDS = [
+  { key: "top", en: "Top", th: "บน" },
+  { key: "right", en: "Right", th: "ขวา" },
+  { key: "bottom", en: "Bottom", th: "ล่าง" },
+  { key: "left", en: "Left", th: "ซ้าย" },
+] as const;
+
 const prettyUrl = (url: string) => url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 
 function Heading({ children, compact = false }: { children: React.ReactNode; compact?: boolean }) {
@@ -288,6 +297,9 @@ export function ResumePdf({
     email: all.profile.emailInPdf,
   });
   const [fit, setFit] = useState({ scale: 1, overflow: false });
+  const [margins, setMargins] = useState<PageMargins>(DEFAULT_MARGINS);
+  const [fontPercent, setFontPercent] = useState(100);
+  const [autoFit, setAutoFit] = useState(true);
   const [preview, setPreview] = useState(1);
   const sheet = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -299,14 +311,17 @@ export function ResumePdf({
     if (!el) return;
     const overflows = () =>
       el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
-    let s = 1;
+    const requested = fontPercent / 100;
+    let s = requested;
     el.style.setProperty("--s", String(s));
-    while (overflows() && s > MIN_SCALE) {
-      s = Math.max(MIN_SCALE, Math.round((s - 0.02) * 100) / 100);
+    // The chosen font size is respected unless one-page auto-fit is enabled.
+    const floor = Math.min(MIN_SCALE, requested);
+    while (autoFit && overflows() && s > floor) {
+      s = Math.max(floor, Math.round((s - 0.02) * 100) / 100);
       el.style.setProperty("--s", String(s));
     }
     setFit({ scale: s, overflow: overflows() });
-  }, []);
+  }, [fontPercent, autoFit]);
 
   useLayoutEffect(() => {
     refit();
@@ -314,7 +329,7 @@ export function ResumePdf({
     // Photos load async and can change the header height.
     const imgs = Array.from(sheet.current?.querySelectorAll("img") ?? []);
     imgs.forEach((img) => img.complete || img.addEventListener("load", refit, { once: true }));
-  }, [lang, parts, data, refit]);
+  }, [lang, parts, data, margins, refit]);
 
   // Scale the on-screen preview to the available width; printing ignores this.
   useEffect(() => {
@@ -379,7 +394,7 @@ export function ResumePdf({
         <span className={`text-sm ${fit.overflow ? "font-medium" : "text-muted"}`} aria-live="polite">
           {fit.overflow
             ? "Content exceeds A4. Turn off a section or shorten some highlights before exporting."
-            : fit.scale < 1
+            : fit.scale !== 1
               ? `Fits on one page (text at ${Math.round(fit.scale * 100)}%)`
               : "Fits on one page"}
         </span>
@@ -391,6 +406,63 @@ export function ResumePdf({
             Download PDF
           </button>
         </div>
+      </div>
+
+      <div className="border-b border-rule bg-paper px-4 py-2 print:hidden md:px-6">
+        <details className="group">
+          <summary className="cursor-pointer select-none py-1 text-sm font-semibold">
+            {lang === "th" ? "ตั้งค่าหน้ากระดาษ A4 / ขอบและขนาดตัวอักษร" : "A4 page layout / Margins & font size"}
+            <span className="ml-2 text-xs font-normal text-muted">{lang === "th" ? "กดเพื่อปรับ" : "Click to adjust"}</span>
+          </summary>
+          <div className="grid gap-5 pb-3 pt-3 lg:grid-cols-2">
+            <div className="space-y-3">
+              <label className="block text-sm">
+                <span className="mb-2 flex items-center justify-between gap-3">
+                  <span>{lang === "th" ? "ขนาดตัวอักษร" : "Text size"}</span>
+                  <output className="tabular-nums font-medium">{fontPercent}%</output>
+                </span>
+                <input type="range" min="70" max="120" step="2" value={fontPercent}
+                  onChange={(e) => setFontPercent(Number(e.target.value))}
+                  className="w-full accent-black" />
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input type="checkbox" checked={autoFit} onChange={(e) => setAutoFit(e.target.checked)} className="size-4 accent-black" />
+                <span>{lang === "th" ? "ย่อให้พอดี A4 หนึ่งหน้าอัตโนมัติ" : "Auto-fit to one A4 page"}</span>
+              </label>
+              <p className="text-xs text-muted">
+                {lang === "th"
+                  ? `ขนาดที่ใช้จริง ${Math.round(fit.scale * 100)}% เมื่อเปิด Auto-fit ระบบอาจลดฟอนต์เพื่อไม่ให้ล้นหน้า`
+                  : `Actual text scale: ${Math.round(fit.scale * 100)}%. Auto-fit may reduce the size to avoid overflow.`}
+              </p>
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium">{lang === "th" ? "ระยะขอบกระดาษ (มม.)" : "Page margins (mm)"}</p>
+              <div className="grid grid-cols-2 gap-x-5 gap-y-3">
+                {MARGIN_FIELDS.map(({ key, en, th }) => (
+                  <label key={key} className="block text-sm">
+                    <span className="mb-1 flex items-center justify-between gap-2">
+                      <span>{lang === "th" ? th : en}</span>
+                      <output className="tabular-nums">{margins[key]} mm</output>
+                    </span>
+                    <input type="range" min="4" max="25" step="1" value={margins[key]}
+                      onChange={(e) => setMargins((current) => ({ ...current, [key]: Number(e.target.value) }))}
+                      className="w-full accent-black" />
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-rule py-2">
+            <p className="text-xs text-muted">
+              {lang === "th" ? "ค่าที่ปรับจะมีผลทั้ง Preview และไฟล์ PDF" : "Changes apply to the preview and the exported PDF."}
+            </p>
+            <button type="button"
+              onClick={() => { setMargins(DEFAULT_MARGINS); setFontPercent(100); setAutoFit(true); }}
+              className="shrink-0 rounded-md border border-rule px-3 py-1.5 text-xs font-medium hover:border-ink">
+              {lang === "th" ? "คืนค่าเริ่มต้น" : "Reset defaults"}
+            </button>
+          </div>
+        </details>
       </div>
 
       <div className="flex min-h-0 flex-1 print:block">
@@ -411,7 +483,13 @@ export function ResumePdf({
         <div ref={stage} className="min-w-0 flex-1 overflow-auto p-4 print:overflow-visible print:p-0">
           <div className="mx-auto print:m-0" style={{ width: 794 * preview, height: 1123 * preview }}>
             <div className="origin-top-left print:!transform-none" style={{ transform: `scale(${preview})` }}>
-              <div ref={sheet} className="resume-sheet box-border h-[297mm] w-[210mm] overflow-hidden bg-white px-[11mm] py-[10mm] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] print:shadow-none">
+              <div ref={sheet} className="resume-sheet box-border h-[297mm] w-[210mm] overflow-hidden bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] print:shadow-none"
+                style={{
+                  paddingTop: `${margins.top}mm`,
+                  paddingRight: `${margins.right}mm`,
+                  paddingBottom: `${margins.bottom}mm`,
+                  paddingLeft: `${margins.left}mm`,
+                }}>
                 <Sheet data={data} lang={lang} parts={shown} />
               </div>
             </div>
