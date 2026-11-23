@@ -102,7 +102,7 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
         </div>
         {parts.photo && p.photo && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={p.photo} alt="" className="h-[30mm] w-[24mm] shrink-0 object-cover" />
+          <img src={p.photo} alt="" className="h-[30mm] w-[25mm] shrink-0 object-cover object-center" />
         )}
       </header>
 
@@ -279,7 +279,7 @@ export function ResumePdf({
     languages: true,
     apps: false,
     hobbies: false,
-    photo: false,
+    photo: true,
     phone: all.profile.phoneInPdf,
     email: all.profile.emailInPdf,
   });
