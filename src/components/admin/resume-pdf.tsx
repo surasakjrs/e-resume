@@ -53,6 +53,7 @@ const partLabels: Record<Part, string> = {
   email: "Email",
 };
 
+// Preserve a readable one-page PDF while allowing a small final reduction for dense resumes.
 const MIN_SCALE = 0.72;
 
 const prettyUrl = (url: string) => url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
@@ -61,7 +62,7 @@ function Heading({ children, compact = false }: { children: React.ReactNode; com
   return (
     // Letter-spacing suits Latin capitals but pulls Thai vowels and tone marks away from their consonants.
     // Keep the divider next to, not behind, the floated profile photo.
-    <h2 className={`flow-root mb-[0.45em] ${compact ? "mt-[0.65em]" : "mt-[1.05em]"} border-b border-black pb-[0.2em] font-display text-[calc(10.5pt*var(--s))] font-semibold uppercase tracking-[0.06em] [:lang(th)_&]:tracking-normal`}>
+    <h2 className={`flow-root mb-[0.35em] ${compact ? "mt-[0.55em]" : "mt-[0.8em]"} border-b border-black pb-[0.15em] font-display text-[calc(10pt*var(--s))] font-semibold uppercase tracking-[0.06em] [:lang(th)_&]:tracking-normal`}>
       {children}
     </h2>
   );
@@ -69,6 +70,7 @@ function Heading({ children, compact = false }: { children: React.ReactNode; com
 
 function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Record<Part, boolean> }) {
   const t = L[lang];
+  const isThai = lang === "th";
   const p = data.profile;
   const other: Locale = lang === "en" ? "th" : "en";
   const name = tr(p.name, lang);
@@ -78,7 +80,7 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
   const hobbies = trList(p.hobbies, lang);
 
   return (
-    <div lang={lang} className="text-[calc(9.3pt*var(--s))] leading-[1.42] text-black">
+    <div lang={lang} className={`text-black [overflow-wrap:anywhere] ${isThai ? "text-[calc(8.8pt*var(--s))] leading-[1.38]" : "text-[calc(9.3pt*var(--s))] leading-[1.42]"}`}>
       {/* Float the photo so Profile can begin below the contact lines, without a photo-height gap. */}
       <div className="flow-root">
         {parts.photo && p.photo && (
@@ -86,11 +88,11 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
           <img src={p.photo} alt="" className="float-right mb-[2mm] ml-[5mm] h-[30mm] w-[25mm] object-cover object-center" />
         )}
         <header>
-          <h1 className="font-display text-[calc(25pt*var(--s))] font-bold leading-[1.05] tracking-[-0.01em]" style={{ fontVariationSettings: '"wdth" 80' }}>
+          <h1 className={`font-display ${isThai ? "text-[calc(22pt*var(--s))]" : "text-[calc(24pt*var(--s))]"} font-bold leading-[1.08] tracking-[-0.01em]`} style={{ fontVariationSettings: '"wdth" 80' }}>
             {name}
             {altName && <span className="ml-[0.4em] text-[0.5em] font-medium tracking-normal text-neutral-500">{altName}</span>}
           </h1>
-          {tr(p.headline, lang) && <p className="mt-[0.25em] text-[calc(11pt*var(--s))]">{tr(p.headline, lang)}</p>}
+          {tr(p.headline, lang) && <p className="mt-[0.2em] text-[calc(10.5pt*var(--s))]">{tr(p.headline, lang)}</p>}
           <p className="mt-[0.35em] break-words text-neutral-600">
             {contact.map((c, i) => (
               <span key={i}>
@@ -137,14 +139,14 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
       {parts.experience && data.experience.length > 0 && (
         <section>
           <Heading>{t.experience}</Heading>
-          <div className="space-y-[0.6em]">
+          <div className="space-y-[0.5em]">
             {data.experience.map((e) => {
               const bullets = trList(e.highlights, lang);
               const meta = [tr(e.company, lang), tr(e.location, lang)].filter(Boolean).join(", ");
               return (
                 <article key={e.id} className="break-inside-avoid">
-                  <div className="flex items-baseline justify-between gap-[4mm]">
-                    <p>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-[3mm] gap-y-[0.5mm]">
+                    <p className="min-w-0 flex-1">
                       <b className="font-semibold">{tr(e.role, lang)}</b>
                       {meta && <span className="text-neutral-700"> | {meta}</span>}
                     </p>
@@ -218,8 +220,8 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
           {parts.education && (
             <ul>
               {data.education.map((e) => (
-                <li key={e.id} className="flex items-baseline justify-between gap-[4mm]">
-                  <span>
+                <li key={e.id} className="flex flex-wrap items-baseline justify-between gap-x-[3mm] gap-y-[0.5mm]">
+                  <span className="min-w-0 flex-1">
                     {[tr(e.degree, lang), tr(e.school, lang)].filter(Boolean).join(", ")}
                     {tr(e.note, lang) && <span className="text-neutral-600"> ({tr(e.note, lang)})</span>}
                   </span>
@@ -290,17 +292,20 @@ export function ResumePdf({
   const sheet = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
 
-  // Shrink type step by step until everything fits on one page.
+  // Fit both dimensions: Thai text and long URLs can overflow horizontally as well as vertically.
+  // Never silently label a clipped A4 resume as fitting on one page.
   const refit = useCallback(() => {
     const el = sheet.current;
     if (!el) return;
+    const overflows = () =>
+      el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
     let s = 1;
     el.style.setProperty("--s", String(s));
-    while (el.scrollHeight > el.clientHeight + 1 && s > MIN_SCALE) {
-      s = Math.round((s - 0.02) * 100) / 100;
+    while (overflows() && s > MIN_SCALE) {
+      s = Math.max(MIN_SCALE, Math.round((s - 0.02) * 100) / 100);
       el.style.setProperty("--s", String(s));
     }
-    setFit({ scale: s, overflow: el.scrollHeight > el.clientHeight + 1 });
+    setFit({ scale: s, overflow: overflows() });
   }, []);
 
   useLayoutEffect(() => {
@@ -373,7 +378,7 @@ export function ResumePdf({
         </div>
         <span className={`text-sm ${fit.overflow ? "font-medium" : "text-muted"}`} aria-live="polite">
           {fit.overflow
-            ? "Too long for one page even at the smallest size. Turn off a section or shorten some highlights."
+            ? "Content exceeds A4. Turn off a section or shorten some highlights before exporting."
             : fit.scale < 1
               ? `Fits on one page (text at ${Math.round(fit.scale * 100)}%)`
               : "Fits on one page"}
@@ -382,7 +387,7 @@ export function ResumePdf({
           <button type="button" onClick={onClose} className="rounded-md border border-rule px-4 py-2 text-sm transition-colors hover:border-ink">
             Close
           </button>
-          <button type="button" onClick={download} className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper">
+          <button type="button" onClick={download} disabled={fit.overflow} title={fit.overflow ? "Content exceeds one A4 page" : undefined} className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper disabled:cursor-not-allowed disabled:opacity-40">
             Download PDF
           </button>
         </div>
@@ -406,7 +411,7 @@ export function ResumePdf({
         <div ref={stage} className="min-w-0 flex-1 overflow-auto p-4 print:overflow-visible print:p-0">
           <div className="mx-auto print:m-0" style={{ width: 794 * preview, height: 1123 * preview }}>
             <div className="origin-top-left print:!transform-none" style={{ transform: `scale(${preview})` }}>
-              <div ref={sheet} className="resume-sheet box-border h-[297mm] w-[210mm] overflow-hidden bg-white px-[15mm] py-[13mm] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] print:shadow-none">
+              <div ref={sheet} className="resume-sheet box-border h-[297mm] w-[210mm] overflow-hidden bg-white px-[11mm] py-[10mm] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] print:shadow-none">
                 <Sheet data={data} lang={lang} parts={shown} />
               </div>
             </div>
