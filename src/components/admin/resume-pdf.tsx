@@ -57,10 +57,11 @@ const MIN_SCALE = 0.72;
 
 const prettyUrl = (url: string) => url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 
-function Heading({ children }: { children: React.ReactNode }) {
+function Heading({ children, compact = false }: { children: React.ReactNode; compact?: boolean }) {
   return (
     // Letter-spacing suits Latin capitals but pulls Thai vowels and tone marks away from their consonants.
-    <h2 className="mb-[0.45em] mt-[1.05em] border-b border-black pb-[0.2em] font-display text-[calc(10.5pt*var(--s))] font-semibold uppercase tracking-[0.06em] [:lang(th)_&]:tracking-normal">
+    // Keep the divider next to, not behind, the floated profile photo.
+    <h2 className={`flow-root mb-[0.45em] ${compact ? "mt-[0.65em]" : "mt-[1.05em]"} border-b border-black pb-[0.2em] font-display text-[calc(10.5pt*var(--s))] font-semibold uppercase tracking-[0.06em] [:lang(th)_&]:tracking-normal`}>
       {children}
     </h2>
   );
@@ -78,14 +79,19 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
 
   return (
     <div lang={lang} className="text-[calc(9.3pt*var(--s))] leading-[1.42] text-black">
-      <header className="flex items-start gap-[5mm]">
-        <div className="min-w-0 flex-1">
+      {/* Float the photo so Profile can begin below the contact lines, without a photo-height gap. */}
+      <div className="flow-root">
+        {parts.photo && p.photo && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={p.photo} alt="" className="float-right mb-[2mm] ml-[5mm] h-[30mm] w-[25mm] object-cover object-center" />
+        )}
+        <header>
           <h1 className="font-display text-[calc(25pt*var(--s))] font-bold leading-[1.05] tracking-[-0.01em]" style={{ fontVariationSettings: '"wdth" 80' }}>
             {name}
             {altName && <span className="ml-[0.4em] text-[0.5em] font-medium tracking-normal text-neutral-500">{altName}</span>}
           </h1>
           {tr(p.headline, lang) && <p className="mt-[0.25em] text-[calc(11pt*var(--s))]">{tr(p.headline, lang)}</p>}
-          <p className="mt-[0.4em] text-neutral-600">
+          <p className="mt-[0.35em] break-words text-neutral-600">
             {contact.map((c, i) => (
               <span key={i}>
                 {i > 0 && <span className="mx-[0.5em] text-neutral-300">|</span>}
@@ -99,16 +105,11 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
               </span>
             ))}
           </p>
-        </div>
-        {parts.photo && p.photo && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={p.photo} alt="" className="h-[30mm] w-[25mm] shrink-0 object-cover object-center" />
-        )}
-      </header>
+        </header>
 
       {parts.summary && tr(p.summary, lang) && (
         <section>
-          <Heading>{t.profile}</Heading>
+          <Heading compact>{t.profile}</Heading>
           {tr(p.summary, lang)
             .split(/\n{2,}/)
             .map((para, i) => (
@@ -117,7 +118,7 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
               </p>
             ))}
         </section>
-      )}
+      )}      </div>
 
       {parts.skills && data.skills.length > 0 && (
         <section>
