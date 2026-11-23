@@ -118,7 +118,8 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
               </p>
             ))}
         </section>
-      )}      </div>
+      )}
+      </div>
 
       {parts.skills && data.skills.length > 0 && (
         <section>
