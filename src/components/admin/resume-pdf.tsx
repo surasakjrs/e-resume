@@ -4,10 +4,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { formatPeriod, formatPoint, tr, trList, type Locale } from "@/lib/i18n";
 import type { GalleryKind, Resume } from "@/lib/schema";
+import { capturePdfSheet } from "@/lib/capture-pdf-sheet";
 
 /**
  * One-page A4 resume built from the editor's current data (published or not),
- * exported through the browser's print dialog ("Save as PDF").
+ * exported as a PDF attachment by the authenticated renderer.
  */
 
 const L = {
@@ -132,13 +133,13 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
       )}
       </div>
 
-      {parts.skills && data.skills.length > 0 && (
+      {parts.skills && data.skills.some((g) => g.items[lang].length > 0) && (
         <section>
           <Heading>{t.skills}</Heading>
           <ul>
-            {data.skills.map((g) => (
+            {data.skills.filter((g) => g.items[lang].length > 0).map((g) => (
               <li key={g.id}>
-                <b className="font-semibold">{tr(g.group, lang)}:</b> {g.items.join(", ")}
+                <b className="font-semibold">{tr(g.group, lang)}:</b> {g.items[lang].join(", ")}
               </li>
             ))}
           </ul>
@@ -297,6 +298,8 @@ export function ResumePdf({
     email: all.profile.emailInPdf,
   });
   const [fit, setFit] = useState({ scale: 1, overflow: false });
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const [margins, setMargins] = useState<PageMargins>(DEFAULT_MARGINS);
   const [fontPercent, setFontPercent] = useState(100);
   const [autoFit, setAutoFit] = useState(true);
@@ -350,18 +353,44 @@ export function ResumePdf({
     };
   }, [onClose]);
 
-  const download = () => {
-    const previous = document.title;
-    const base = (tr(data.profile.name, "en") || "Resume").replace(/\s+/g, "_");
-    document.title = `${base}_Resume_${lang.toUpperCase()}`;
-    addEventListener("afterprint", () => (document.title = previous), { once: true });
-    window.print();
+  const download = async () => {
+    if (exporting || fit.overflow || !sheet.current) return;
+    setExporting(true);
+    setExportError("");
+    try {
+      await document.fonts.ready;
+      const el = sheet.current;
+      if (!el) return;
+      await Promise.all(Array.from(el.querySelectorAll("img")).map((img) => img.decode()));
+      refit();
+      if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
+        throw new Error("Content exceeds one A4 page. Adjust the layout before exporting.");
+      }
+      const body = await capturePdfSheet(el, lang);
+      const response = await fetch("/api/resume-pdf", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error || "Could not generate the PDF.");
+      }
+      if (!response.headers.get("content-type")?.startsWith("application/pdf")) throw new Error("The server did not return a PDF.");
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      const base = (tr(data.profile.name, "en") || "Resume").replace(/[\\/:*?"<>|\s]+/g, "_");
+      link.href = url;
+      link.download = base + "_Resume_" + lang.toUpperCase() + ".pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Could not generate the PDF.");
+    } finally { setExporting(false); }
   };
 
   const available: Record<Part, boolean> = {
     summary: Boolean(tr(data.profile.summary, lang)),
     experience: data.experience.length > 0,
-    skills: data.skills.length > 0,
+    skills: data.skills.some((g) => g.items[lang].length > 0),
     certificates: data.gallery.length > 0,
     education: data.education.length > 0,
     languages: data.spokenLanguages.length > 0,
@@ -383,7 +412,7 @@ export function ResumePdf({
             <button
               key={l}
               type="button"
-              onClick={() => setLang(l)}
+              onClick={() => setLang(l)} disabled={exporting}
               aria-pressed={lang === l}
               className={`rounded px-3 py-1 text-sm ${lang === l ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
             >
@@ -402,12 +431,13 @@ export function ResumePdf({
           <button type="button" onClick={onClose} className="rounded-md border border-rule px-4 py-2 text-sm transition-colors hover:border-ink">
             Close
           </button>
-          <button type="button" onClick={download} disabled={fit.overflow} title={fit.overflow ? "Content exceeds one A4 page" : undefined} className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper disabled:cursor-not-allowed disabled:opacity-40">
-            Download PDF
+          <button type="button" onClick={download} disabled={fit.overflow || exporting} title={fit.overflow ? "Content exceeds one A4 page" : undefined} className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper disabled:cursor-not-allowed disabled:opacity-40">
+            {exporting ? (lang === "th" ? "กำลังสร้าง PDF…" : "Generating PDF…") : (lang === "th" ? "ดาวน์โหลด PDF" : "Download PDF")}
           </button>
         </div>
       </div>
 
+      {exportError && <p role="alert" className="border-b border-rule bg-paper px-4 py-2 text-sm text-red-700">{exportError}</p>}
       <div className="border-b border-rule bg-paper px-4 py-2 print:hidden md:px-6">
         <details className="group">
           <summary className="cursor-pointer select-none py-1 text-sm font-semibold">
@@ -421,12 +451,12 @@ export function ResumePdf({
                   <span>{lang === "th" ? "ขนาดตัวอักษร" : "Text size"}</span>
                   <output className="tabular-nums font-medium">{fontPercent}%</output>
                 </span>
-                <input type="range" min="70" max="120" step="2" value={fontPercent}
+                <input type="range" disabled={exporting} min="70" max="120" step="2" value={fontPercent}
                   onChange={(e) => setFontPercent(Number(e.target.value))}
                   className="w-full accent-black" />
               </label>
               <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input type="checkbox" checked={autoFit} onChange={(e) => setAutoFit(e.target.checked)} className="size-4 accent-black" />
+                <input type="checkbox" disabled={exporting} checked={autoFit} onChange={(e) => setAutoFit(e.target.checked)} className="size-4 accent-black" />
                 <span>{lang === "th" ? "ย่อให้พอดี A4 หนึ่งหน้าอัตโนมัติ" : "Auto-fit to one A4 page"}</span>
               </label>
               <p className="text-xs text-muted">
@@ -444,7 +474,7 @@ export function ResumePdf({
                       <span>{lang === "th" ? th : en}</span>
                       <output className="tabular-nums">{margins[key]} mm</output>
                     </span>
-                    <input type="range" min="4" max="25" step="1" value={margins[key]}
+                    <input type="range" disabled={exporting} min="4" max="25" step="1" value={margins[key]}
                       onChange={(e) => setMargins((current) => ({ ...current, [key]: Number(e.target.value) }))}
                       className="w-full accent-black" />
                   </label>
@@ -457,7 +487,7 @@ export function ResumePdf({
               {lang === "th" ? "ค่าที่ปรับจะมีผลทั้ง Preview และไฟล์ PDF" : "Changes apply to the preview and the exported PDF."}
             </p>
             <button type="button"
-              onClick={() => { setMargins(DEFAULT_MARGINS); setFontPercent(100); setAutoFit(true); }}
+              disabled={exporting} onClick={() => { setMargins(DEFAULT_MARGINS); setFontPercent(100); setAutoFit(true); }}
               className="shrink-0 rounded-md border border-rule px-3 py-1.5 text-xs font-medium hover:border-ink">
               {lang === "th" ? "คืนค่าเริ่มต้น" : "Reset defaults"}
             </button>
@@ -471,12 +501,12 @@ export function ResumePdf({
           <p className="mb-2 text-sm font-medium">Include</p>
           {(Object.keys(partLabels) as Part[]).map((k) => (
             <label key={k} className={`flex items-center gap-2 py-1.5 text-sm ${available[k] ? "cursor-pointer" : "text-muted/60"}`}>
-              <input type="checkbox" disabled={!available[k]} checked={shown[k]} onChange={(e) => setParts({ ...parts, [k]: e.target.checked })} className="size-4 accent-current" />
+              <input type="checkbox" disabled={exporting || !available[k]} checked={shown[k]} onChange={(e) => setParts({ ...parts, [k]: e.target.checked })} className="size-4 accent-current" />
               {partLabels[k]}
             </label>
           ))}
           <p className="mt-4 text-xs leading-relaxed text-muted">
-            Uses what&apos;s in the editor now, including unpublished changes. In the print dialog, choose &ldquo;Save as PDF&rdquo;.
+            Uses what&apos;s in the editor now, including unpublished changes. Download creates a PDF file directly.
           </p>
         </fieldset>
 

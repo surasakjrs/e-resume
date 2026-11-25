@@ -93,7 +93,36 @@ export const galleryItemSchema = z.object({
   pdf: inPdf,
 });
 
-export const skillGroupSchema = z.object({ id, group: L, items: z.array(text).default([]), pdf: inPdf });
+/** Legacy skill strings were shared by both locales. Split explicit English
+ * (Thai) pairs; preserve untranslated labels instead of inventing translations. */
+export function migrateSkillItems(value: unknown): unknown {
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) return value;
+  const en: string[] = [];
+  const th: string[] = [];
+  for (const item of value as string[]) {
+    const label = item.trim();
+    if (!label) continue;
+    const pair = /^(.*?)\s*\(([^()]*)\)$/.exec(label);
+    const hasThai = /[\u0E00-\u0E7F]/;
+    if (pair && pair[1].trim() && !hasThai.test(pair[1]) && hasThai.test(pair[2])) {
+      en.push(pair[1].trim());
+      th.push(pair[2].trim());
+    } else if (hasThai.test(label)) {
+      th.push(label);
+    } else {
+      en.push(label);
+      th.push(label);
+    }
+  }
+  return { en, th };
+}
+
+export const skillGroupSchema = z.object({
+  id,
+  group: L,
+  items: z.preprocess(migrateSkillItems, LList),
+  pdf: inPdf,
+});
 
 export const educationSchema = z.object({
   id,
