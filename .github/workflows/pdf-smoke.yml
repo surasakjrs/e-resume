@@ -23,5 +23,6 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx --no-install next typegen
       - run: npx --no-install tsc --noEmit
       - run: node tests/pdf-smoke.mjs
