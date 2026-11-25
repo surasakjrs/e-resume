@@ -1,0 +1,27 @@
+name: PDF runtime smoke
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/app/api/resume-pdf/**'
+      - 'src/lib/*pdf*'
+      - 'src/components/admin/resume-pdf.tsx'
+      - 'package*.json'
+      - 'tests/pdf-smoke.mjs'
+      - '.github/workflows/pdf-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  pdf-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx --no-install tsc --noEmit
+      - run: node tests/pdf-smoke.mjs
