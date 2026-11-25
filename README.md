@@ -62,3 +62,7 @@ npm run dev
 ### Bilingual skills migration
 
 `skills[].items` now uses `{ en: string[], th: string[] }` (resume version remains 2). The shared schema accepts older string arrays on profile reads, imports and saves. Explicit `English (Thai)` labels split into their respective lists, Thai-containing unpaired labels are kept in Thai, and untranslated English/technical labels remain in both lists until edited. No translations are invented. Publishing saves the normalized object under existing owner RLS; no bulk database update is needed. The public profile and PDF render only the selected language list.
+
+### Direct PDF downloads
+
+The A4 editor downloads a text-based PDF through the authenticated `POST /api/resume-pdf` Node route. It sends a bounded snapshot of the selected preview, including computed typography, page margins, section toggles and embedded same-origin fonts/photo. The server reconstructs allowlisted markup with JavaScript and network requests disabled, checks overflow and returns a PDF attachment without storing resume data. Uses Chromium 149 / Puppeteer 25.1. For local development on unsupported architectures, set `PDF_CHROMIUM_PATH` to a compatible installed Chrome/Chromium executable. External profile photos need CORS permission to be embedded. No print dialog is used. Regenerate `package-lock.json` with `npm install` and verify the Vercel preview before merging.
