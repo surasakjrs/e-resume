@@ -61,7 +61,8 @@ try {
     assert.equal(response.headers.get("content-type"), "application/pdf");
     assert.match(response.headers.get("content-disposition"), /^attachment;/);
     const data = new Uint8Array(await response.arrayBuffer());
-    const pdf = await getDocument({ data }).promise;
+    const loadingTask = getDocument({ data });
+    const pdf = await loadingTask.promise;
     assert.equal(pdf.numPages, 1, "A4 page count " + lang);
     const page = await pdf.getPage(1);
     const [x0,y0,x1,y1] = page.view;
@@ -69,7 +70,7 @@ try {
     const text = (await page.getTextContent()).items.map((item) => item.str || "").join("");
     const normalize = (s) => s.normalize("NFC").replace(/\s+/g, "");
     assert.ok(normalize(text).includes(normalize(label)), "Extractable " + lang + " text: " + text);
-    await pdf.destroy();
+    await loadingTask.destroy();
     console.log("PASS", lang, "A4 1 page, PDF attachment, extractable text");
   }
   console.log("PASS authentication and validation checks");
