@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   let browser: Awaited<ReturnType<typeof puppeteer.launch>> | undefined;
   try {
     browser = await puppeteer.launch({
-      args: puppeteer.defaultArgs({ args: chromium.args, headless: "shell" }),
+      args: await puppeteer.defaultArgs({ args: chromium.args, headless: "shell" }),
       executablePath: process.env.PDF_CHROMIUM_PATH || await chromium.executablePath(),
       headless: "shell",
     });

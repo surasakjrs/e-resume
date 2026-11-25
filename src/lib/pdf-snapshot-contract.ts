@@ -1,5 +1,5 @@
 // Bounded, structured A4 snapshot shared by browser and PDF renderer.
-export const pdfTags = ["div","header","section","h1","h2","p","ul","li","span","b","strong","a","img","br","#text"] as const;
+export const pdfTags = ["div","header","section","article","h1","h2","p","ul","li","span","b","strong","a","img","br","#text"] as const;
 export const pdfStyles = [
   "display","float","clear","box-sizing","min-width","max-width",
   "margin-top","margin-right","margin-bottom","margin-left",

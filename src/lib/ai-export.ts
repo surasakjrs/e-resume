@@ -44,7 +44,7 @@ export function toMarkdown(data: Resume, lang: Locale): string {
     h(L.certs);
     for (const g of data.gallery) out.push(`- ${join([tr(g.title, lang), tr(g.issuer, lang), formatPoint(g.date, lang)])}`);
   }
-  if (data.skills.length) {
+  if (data.skills.some((s) => s.items[lang].length > 0)) {
     h(L.skills);
     for (const s of data.skills) if (s.items[lang].length) out.push(`- **${tr(s.group, lang)}:** ${s.items[lang].join(", ")}`);
   }
