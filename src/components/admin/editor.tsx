@@ -389,21 +389,21 @@ export function Editor({ initial, handle, userId, email, isPublic }: EditorProps
             )}
 
             {tab === "skills" && (
-              <Panel title="Skills & languages" description="Group related skills together. Skill names are the same in both languages.">
+              <Panel title="Skills & languages" description="Group related skills together. Enter separate English and Thai lists, one skill per line.">
                 <ListEditor<SkillGroup>
                   pdfToggle
                   items={data.skills}
                   onChange={(v) => patch("skills", v)}
-                  create={() => ({ group: empty(), items: [], pdf: true })}
+                  create={() => ({ group: empty(), items: { en: [], th: [] }, pdf: true })}
                   addLabel="Add a skill group"
                   emptyText="No skill groups yet."
                   title={(g) => label(g.group)}
-                  subtitle={(g) => g.items.join(", ")}
+                  subtitle={(g) => (g.items.en.length ? g.items.en : g.items.th).join(", ")}
                 >
                   {(g, set) => (
                     <>
                       <LocalizedField className="sm:col-span-2" label="Group" value={g.group} onChange={(group) => set({ group })} />
-                      <TagsField className="sm:col-span-2" label="Skills" hint="Separate with commas" value={g.items} onChange={(items) => set({ items })} />
+                      <LocalizedLines className="sm:col-span-2" label="Skills" hint="One skill per line in each language" value={g.items} onChange={(items) => set({ items })} />
                     </>
                   )}
                 </ListEditor>

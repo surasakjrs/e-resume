@@ -132,13 +132,13 @@ function Sheet({ data, lang, parts }: { data: Resume; lang: Locale; parts: Recor
       )}
       </div>
 
-      {parts.skills && data.skills.length > 0 && (
+      {parts.skills && data.skills.some((g) => g.items[lang].length > 0) && (
         <section>
           <Heading>{t.skills}</Heading>
           <ul>
-            {data.skills.map((g) => (
+            {data.skills.filter((g) => g.items[lang].length > 0).map((g) => (
               <li key={g.id}>
-                <b className="font-semibold">{tr(g.group, lang)}:</b> {g.items.join(", ")}
+                <b className="font-semibold">{tr(g.group, lang)}:</b> {g.items[lang].join(", ")}
               </li>
             ))}
           </ul>
@@ -361,7 +361,7 @@ export function ResumePdf({
   const available: Record<Part, boolean> = {
     summary: Boolean(tr(data.profile.summary, lang)),
     experience: data.experience.length > 0,
-    skills: data.skills.length > 0,
+    skills: data.skills.some((g) => g.items[lang].length > 0),
     certificates: data.gallery.length > 0,
     education: data.education.length > 0,
     languages: data.spokenLanguages.length > 0,

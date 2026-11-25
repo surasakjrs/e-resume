@@ -58,3 +58,7 @@ npm run dev
 2. Supabase → Authentication → Sign In / Providers → **Google**: enable it and paste the client ID and secret.
 3. Supabase → Authentication → Sign In / Providers → **Email**: turn off sign-ups (the database refuses them anyway).
 4. Supabase → Authentication → URL Configuration: Site URL = the deployed URL; add `<site>/auth/confirm` (and `http://localhost:3000/auth/confirm` for local work) to the redirect URLs.
+
+### Bilingual skills migration
+
+`skills[].items` now uses `{ en: string[], th: string[] }` (resume version remains 2). The shared schema accepts older string arrays on profile reads, imports and saves. Explicit `English (Thai)` labels split into their respective lists, Thai-containing unpaired labels are kept in Thai, and untranslated English/technical labels remain in both lists until edited. No translations are invented. Publishing saves the normalized object under existing owner RLS; no bulk database update is needed. The public profile and PDF render only the selected language list.

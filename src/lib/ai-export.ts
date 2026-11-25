@@ -46,7 +46,7 @@ export function toMarkdown(data: Resume, lang: Locale): string {
   }
   if (data.skills.length) {
     h(L.skills);
-    for (const s of data.skills) out.push(`- **${tr(s.group, lang)}:** ${s.items.join(", ")}`);
+    for (const s of data.skills) if (s.items[lang].length) out.push(`- **${tr(s.group, lang)}:** ${s.items[lang].join(", ")}`);
   }
   if (data.spokenLanguages.length) {
     h(L.languages);
@@ -87,7 +87,7 @@ export function aiPrompt(data: Resume, { includeContact }: { includeContact: boo
 
 ## Rules for your reply
 - Reply with the complete updated JSON in one \`\`\`json code block. Keep the same structure and keys.
-- Keep every existing "id" unchanged. New items need a new unique "id" (any short unique string).
+- Skills use "items": {"en": [...], "th": [...]}. Keep skill lists in their respective languages; do not combine translations in parentheses.\n- Keep every existing "id" unchanged. New items need a new unique "id" (any short unique string).
 - Text fields with "en" and "th" must be filled in both languages, natural and professional. Don't leave one language empty unless I ask.
 - Dates are "YYYY-MM" or "YYYY". An empty "end" means the role is ongoing.
 - Don't change, add or remove image or file links (photo, icon, image, file, screenshots, photos, resumeFile). Keep them exactly as they are.

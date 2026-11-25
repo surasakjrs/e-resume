@@ -111,7 +111,7 @@ async function ProfileView({ params, searchParams }: Props) {
     apps: sections.apps && data.apps.length > 0,
     gallery: sections.gallery && data.gallery.length > 0,
     photos: sections.photos && data.photos.length > 0,
-    skills: sections.skills && (data.skills.length > 0 || data.spokenLanguages.length > 0),
+    skills: sections.skills && (data.skills.some((g) => g.items[lang].length > 0) || data.spokenLanguages.length > 0),
     education: sections.education && data.education.length > 0,
     contact: sections.contact,
   };
@@ -301,10 +301,10 @@ async function ProfileView({ params, searchParams }: Props) {
         {show.skills && (
           <Section id="skills" title={t.skills}>
             <dl className="grid gap-x-10 gap-y-8 sm:grid-cols-2">
-              {data.skills.map((g) => (
+              {data.skills.filter((g) => g.items[lang].length > 0).map((g) => (
                 <div key={g.id}>
                   <dt className="text-sm text-muted">{tr(g.group, lang)}</dt>
-                  <dd className="mt-2 text-lg leading-snug md:text-xl">{g.items.join(", ")}</dd>
+                  <dd className="mt-2 text-lg leading-snug md:text-xl">{g.items[lang].join(", ")}</dd>
                 </div>
               ))}
               {data.spokenLanguages.length > 0 && (
